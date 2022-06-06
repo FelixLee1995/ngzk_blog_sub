@@ -1,0 +1,1 @@
+docker rmi ngzk_blog_sub:1.0

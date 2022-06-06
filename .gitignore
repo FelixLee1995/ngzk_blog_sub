@@ -1,0 +1,9 @@
+/images
+/blog_archive
+*.pyc
+config.yaml
+*.txt
+*.log
+/build
+/.vscode
+/.idea

@@ -1,0 +1,9 @@
+mail_setting:
+  sender_mail_address: a@qq.com             # 发件人的邮箱地址
+  sender_nick_name: 星                               # 发件人的昵称
+  auth_code: aaaaaaa                       # 发件人qq邮箱的授权码
+  receiver_mail_list: [b@qq.com']          # 订阅blog更新提醒的邮箱, 请慎重填写, 多个地址用逗号分割  eg:  ['a@qq.com', 'b@qq.com'], 防止造成大量垃圾邮件发送
+images_save_dir:                                    # blog中图片保存的位置,  若不填写， 则为运行目录下images文件夹
+blogs_save_dir:                                     # blog原文保存的位置,  若不填写， 则为运行目录下blogs_archive文件夹
+qry_interval: 25                                    # 从官网查询blog更新的时间间隔, 单位为秒, 建议设置为 15-30
+if_play_sound: 1                                    # 提醒时是否播放系统提示音， 1：是，  0：否

@@ -1,0 +1,1 @@
+docker build  -t ngzk_blog_sub:1.0 .
