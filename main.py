@@ -52,7 +52,7 @@ class Loader:
         per=100.0*a*b/c
         if per>100:
             per=100
-        print('%.2f%%' % per)
+        # print('%.2f%%' % per)
 
     def Down(self, url, filename):
         try: 
@@ -74,7 +74,8 @@ logger = None
 g_image_save_dir = g_config.get_config("images_save_dir", './images')
 g_blog_save_dir = g_config.get_config("blogs_save_dir", './blog_archive')
 g_qry_interval = g_config.get_config("qry_interval", 30)
-g_resp_json_data = []
+g_blog_signature = []
+g_blog_max_cache = 100
 
 def set_logger():
     global logger
@@ -105,7 +106,7 @@ def save_blog_from_html_content(desc, html_content):
         f.write(html_content)
 
 def get_latest_release_from_url(url: str):
-    res = requests.request('get', url)
+    res = requests.request('get', url, timeout=10)
 
     # 时间
     date_index = res.text.find('bl--card__date')
@@ -138,7 +139,7 @@ def handle_new_blog_release(new_date, new_title, new_href, new_thumb, new_member
 
     # 下载图片
     image_list = save_img_from_url(new_href, g_image_save_dir, desc)
-    mail_context = gen_html_content_with_img_list(new_date, new_title, new_href, new_thumb, new_member, image_list)
+    mail_context = gen_mail_content(new_date, new_title, new_href, new_thumb, new_member, image_list, html_content)
 
     
     g_mail.send("乃木坂blog更新提醒", mail_context, 'html')
@@ -148,7 +149,7 @@ def handle_new_blog_release(new_date, new_title, new_href, new_thumb, new_member
     title = new_title
 
     # 保存blog原文
-    with open(g_blog_save_dir + "/" + desc + ".html", "w") as f:
+    with open(g_blog_save_dir + "/" + desc + ".html", "w", encoding="utf-8") as f:
         f.write(html_content)
 
     logger.info(f"query blog release, snapshot: [{desc}]")
@@ -156,40 +157,27 @@ def handle_new_blog_release(new_date, new_title, new_href, new_thumb, new_member
 
 
 def get_latest_release_from_blog_main_page(url: str):
-    global g_resp_json_data
-    res = requests.request('get', url)
+    global g_blog_signature
+    try:
+        res = requests.request('get', url, timeout= 10)
+    except BaseException as e:
+        logger.error(f"failed to request: {e}")
+        return
+    
     res_len = len(res.text)
     res_str = res.text[4:res_len-2]
     res_json = json.loads(res_str)
-
-    if len(g_resp_json_data) == 0:
-        g_resp_json_data = [a["code"] for a in res_json['data']]
-
-
-
-        first_release_item = res_json['data'][0]
-        # 时间
-
-        datestr = first_release_item['date']
-
-        # 标题
-
-        title_str = first_release_item['title']
-
-        # 链接
-
-        href_str = first_release_item['link']
-
-        # bl--card__img hv--thumb__i  查找缩略图
-        thumb = first_release_item['img']
-
-        member = first_release_item['name']
-
-        html_content = first_release_item['text']
-        return datestr, title_str, href_str, thumb, member,(datestr + member).replace('/', '-').replace(':', '.'), html_content
-
+    
+    send_flag = True
+    
+    if len(g_blog_signature) == 0:
+        send_flag = False
+        
     for blog_json_item in res_json['data']:
-        if blog_json_item['code'] not in g_resp_json_data:
+        identifier = blog_json_item['date'] + blog_json_item['code'] + blog_json_item['title']  + blog_json_item['arti_code']
+        print(f"blog identifier [{identifier}]")
+        if identifier not in g_blog_signature :
+            print(f"g_blog_signature is {g_blog_signature}")
             first_release_item = blog_json_item
             # 时间
 
@@ -208,10 +196,23 @@ def get_latest_release_from_blog_main_page(url: str):
 
             member = first_release_item['name']
             html_content = first_release_item['text']
-            handle_new_blog_release(datestr, title_str, href_str, thumb, member, (datestr + member).replace('/', '-').replace(':', '.'), html_content)
-
-    g_resp_json_data = [a["code"] for a in res_json['data']]
-
+            
+            g_blog_signature.append(identifier)
+            
+            if send_flag:
+                handle_new_blog_release(datestr, title_str, href_str, thumb, member, (datestr + member).replace('/', '-').replace(':', '.'), html_content)
+    
+    print(f"len of cache is {len(g_blog_signature)}, cache is [{g_blog_signature}]")            
+            
+    if len(g_blog_signature) >= g_blog_max_cache:
+        g_blog_signature = g_blog_signature[g_blog_max_cache/2:]
+    
+    if len(res_json['data']) > 0:
+        
+        return res_json['data'][0]['date'], res_json['data'][0]['title'], res_json['data'][0]['link'], res_json['data'][0]['img'], res_json['data'][0]['name'], '', res_json['data'][0]['text']
+    
+    return '', '', '', '', '', '', ''
+    
 def get_blog_main_by_url(url: str):
     res = requests.request('get', url)
 
@@ -221,15 +222,19 @@ def gen_blog_content(datestr, title, href, thumb, member):
     return f"BLOG更新提醒, [{member}] ,更新时间为[{datestr}],  标题为[{title}], 链接为[{href}]"
 
 
-def gen_html_content_with_img_list(datestr, title, href, thumb, member, image_list):
+def gen_mail_content(datestr, title, href, thumb, member, image_list, html_content):
     ouline = f"BLOG更新提醒, [{member}] ,更新时间为[{datestr}],  标题为[{title}], 链接为[{href}]"
     images_tag = ''
     for image in image_list:
         images_tag += ('<img src="%s" width="500" />' % image)
-    html_str = '<!DOCTYPE html><html><head><meta charset="utf-8"><title></title></head><body><h1>%s:</h1>%s</body></html>' % (ouline, images_tag)
+        
+    html_content = html_content.replace("/files", "https://www.nogizaka46.com/files")
+    html_str = '<!DOCTYPE html><html><head><meta charset="utf-8"><title></title></head><body><h1>%s:</h1>%s'  \
+        '<p>------------------------------标题-----------------------------</p>%s'  \
+        '<p>------------------------------正文-----------------------------</p>%s'     \
+        '</body></html>' % (ouline, images_tag, title, html_content)
 
     return html_str
-
 
 
 def save_img_from_url(url, filepath, desc) -> list:
@@ -257,6 +262,7 @@ def poll_blog_attr():
         global datestr, title
         time.sleep(g_qry_interval)
         try:
+            logger.info(f"try get snapshot")
             get_latest_release_from_blog_main_page(url)
         except BaseException as e:
             traceback.print_exc()
@@ -270,7 +276,7 @@ if __name__ == '__main__':
     datestr, title, href, thumb, member, desc, html_content = get_latest_release_from_blog_main_page(url)
     init_context = gen_blog_content(datestr, title, href, thumb, member)
     logger.info(f"初始状态为: {init_context}")
-
+    
     image_list = save_img_from_url(href, g_image_save_dir, desc)
     save_blog_from_html_content(desc, html_content)
     

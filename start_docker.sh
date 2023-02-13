@@ -1,1 +1,1 @@
-docker run --name=ngzk_blog_sub --restart=always -d  -v /home/felixlee/app/ngzk_blog_sub/images:/app/images   ngzk_blog_sub:1.0  
+docker run --name=ngzk_blog_sub --restart=always -d  -v /home/felixlee/workspace/ngzk_blog_sub/images:/app/images  -v /home/felixlee/workspace/ngzk_blog_sub/blog_archive:/app/blog_archive  ngzk_blog_sub:1.0  
